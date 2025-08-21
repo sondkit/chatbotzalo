@@ -3,7 +3,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 const fs = require("fs");
-const path = require("path"); // Thêm thư viện 'path'
+const path = require("path"); // Thư viện 'path' rất quan trọng
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 require("dotenv").config();
 
@@ -11,12 +11,8 @@ require("dotenv").config();
 const app = express();
 
 // --- Cấu hình Middleware ---
-// Middleware để xử lý JSON body
 app.use(bodyParser.json());
-
-// Middleware để phục vụ các file tĩnh từ thư mục 'public'
-// Phải đặt trước các route API
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'))); // Phục vụ file tĩnh
 
 // --- Lấy các thông tin bí mật từ Biến Môi trường ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -32,7 +28,6 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // --- Nạp "Sổ tay kiến thức" ---
 let knowledgeBase = "";
 try {
-  // Sửa đường dẫn để tìm đúng file ở thư mục gốc
   knowledgeBase = fs.readFileSync(path.join(__dirname, 'data.txt'), "utf8");
   console.log("Đã nạp thành công sổ tay kiến thức.");
 } catch (err) {
@@ -50,7 +45,7 @@ app.post("/zalo", async (req, res) => {
     const messageText = event.message.text;
     console.log(`Nhận được tin nhắn từ user ${senderId}: "${messageText}"`);
 
-    const prompt = `Bạn là một trợ lý ảo chuyên về thủ tục hành chính...`; // (Giữ nguyên prompt của bạn)
+    const prompt = `Bạn là một trợ lý ảo chuyên về thủ tục hành chính. Nhiệm vụ của bạn là trả lời câu hỏi của người dân CHỈ DỰA VÀO thông tin được cung cấp trong phần "DỮ LIỆU" dưới đây. QUY TẮC BẮT BUỘC: 1. Chỉ sử dụng thông tin trong phần "DỮ LIỆU". Tuyệt đối không tự ý suy diễn hoặc dùng kiến thức bên ngoài. 2. Nếu câu hỏi không có thông tin trong "DỮ LIỆU", hãy trả lời là: "Xin lỗi, tôi chưa có thông tin về vấn đề này. Anh/chị vui lòng liên hệ trực tiếp cán bộ có chuyên môn để được tư vấn chính xác nhất." 3. Trả lời ngắn gọn, đi thẳng vào vấn đề, sử dụng ngôn ngữ dễ hiểu. --- DỮ LIỆU --- ${knowledgeBase} --- KẾT THÚC DỮ LIỆU --- Câu hỏi của người dân: "${messageText}"`;
 
     try {
       const result = await model.generateContent(prompt);
@@ -60,7 +55,7 @@ app.post("/zalo", async (req, res) => {
       await sendZaloMessage(senderId, geminiReply);
     } catch (error) {
       console.error("Lỗi khi gọi Gemini API:", error);
-      await sendZaloMessage(senderId, "Xin lỗi, hệ thống đang gặp sự cố...");
+      await sendZaloMessage(senderId, "Xin lỗi, hệ thống đang gặp sự cố. Vui lòng thử lại sau.");
     }
   }
   res.sendStatus(200);
@@ -72,9 +67,20 @@ app.get("/zalo", (req, res) => {
   res.send("Webhook đã sẵn sàng!");
 });
 
-// Hàm gửi tin nhắn (Giữ nguyên hàm của bạn)
+// Hàm gửi tin nhắn
 async function sendZaloMessage(recipientId, text) {
-    //...
+    if (!ZALO_OA_ACCESS_TOKEN) {
+        console.error("LỖI: ZALO_OA_ACCESS_TOKEN chưa được thiết lập!");
+        return;
+    }
+    const url = "https://openapi.zalo.me/v2.0/oa/message";
+    const data = { recipient: { user_id: recipientId }, message: { text: text } };
+    try {
+        await axios.post(url, data, { headers: { "access_token": ZALO_OA_ACCESS_TOKEN, "Content-Type": "application/json" } });
+        console.log(`Đã gửi tin nhắn thành công đến user ${recipientId}`);
+    } catch (error) {
+        console.error("Lỗi khi gửi tin nhắn Zalo:", error.response ? error.response.data : error.message);
+    }
 }
 
 // --- Khởi động máy chủ ---
