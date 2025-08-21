@@ -8,6 +8,7 @@ require("dotenv").config();
 
 // --- Khởi tạo ứng dụng ---
 const app = express();
+app.use(express.static('public'));
 app.use(bodyParser.json());
 
 // --- Lấy các thông tin bí mật từ Biến Môi trường ---
